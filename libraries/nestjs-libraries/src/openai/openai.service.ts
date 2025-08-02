@@ -4,6 +4,11 @@ import { shuffle } from 'lodash';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
+// Sentry
+import { initializeSentry } from '@gitroom/nestjs-libraries/sentry/initialize.sentry.ai';
+
+initializeSentry();
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
 });
@@ -25,8 +30,16 @@ export class OpenaiService {
         response_format: isUrl ? 'url' : 'b64_json',
         model: 'dall-e-3',
         ...(isVertical ? { size: '1024x1792' } : {}),
-      })
-    ).data[0];
+
+        // Sentry
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: "generateImage",
+          recordInputs: true,
+          recordOutputs: true,
+          },
+        })
+      ).data[0];
 
     return isUrl ? generate.url : generate.b64_json;
   }
@@ -45,6 +58,13 @@ export class OpenaiService {
               role: 'user',
               content: `prompt: ${prompt}`,
             },
+        // Sentry
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: "generatePromptForPicture",
+          recordInputs: true,
+          recordOutputs: true,
+          },
           ],
           response_format: zodResponseFormat(PicturePrompt, 'picturePrompt'),
         })
@@ -65,6 +85,13 @@ export class OpenaiService {
             {
               role: 'user',
               content: `prompt: ${prompt}`,
+            },
+        // Sentry
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "generateVoiceFromText",
+            recordInputs: true,
+            recordOutputs: true,
             },
           ],
           response_format: zodResponseFormat(VoicePrompt, 'voice'),
@@ -88,6 +115,12 @@ export class OpenaiService {
               content: content!,
             },
           ],
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "generatePosts",
+            recordInputs: true,
+            recordOutputs: true,
+            },
           n: 5,
           temperature: 1,
           model: 'gpt-4.1',
@@ -107,6 +140,12 @@ export class OpenaiService {
           n: 5,
           temperature: 1,
           model: 'gpt-4.1',
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "generatePosts",
+            recordInputs: true,
+            recordOutputs: true,
+            },
         }),
       ])
     ).flatMap((p) => p.choices);
@@ -143,7 +182,14 @@ export class OpenaiService {
           role: 'user',
           content,
         },
+        
       ],
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: "extractWebsiteText",
+        recordInputs: true,
+        recordOutputs: true,
+        },
       model: 'gpt-4.1',
     });
 
@@ -177,6 +223,12 @@ export class OpenaiService {
               content: content,
             },
           ],
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "separatePosts",
+            recordInputs: true,
+            recordOutputs: true,
+            },
           response_format: zodResponseFormat(
             SeparatePostsPrompt,
             'separatePosts'
@@ -208,6 +260,12 @@ export class OpenaiService {
                         content: post,
                       },
                     ],
+                    experimental_telemetry: {
+                      isEnabled: true,
+                      functionId: "shrinkPost",
+                      recordInputs: true,
+                      recordOutputs: true,
+                      },
                     response_format: zodResponseFormat(
                       SeparatePostPrompt,
                       'separatePost'
@@ -242,6 +300,12 @@ export class OpenaiService {
               content: text,
             },
           ],
+          experimental_telemetry: {
+            isEnabled: true,
+            functionId: "generateSlides",
+            recordInputs: true,
+            recordOutputs: true,
+            },
           response_format: zodResponseFormat(
             z.object({
               slides: z.array(
