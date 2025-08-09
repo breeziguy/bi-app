@@ -1,11 +1,9 @@
-# Do **not** use this yml for production. It is not up-to-date.
-# Use https://docs.postiz.com/installation/docker-compose
-# This is only for the dev enviroment
+# Do **not** use this for production. Dev-only.
+# For prod: https://docs.postiz.com/installation/docker-compose
 
 services:
   postiz-postgres:
-    # ref: https://hub.docker.com/_/postgres
-    image: postgres:17-alpine # 17.0
+    image: postgres:17-alpine
     container_name: postiz-postgres
     restart: always
     environment:
@@ -14,49 +12,89 @@ services:
       POSTGRES_DB: postiz-db-local
     volumes:
       - postgres-volume:/var/lib/postgresql/data
-    ports:
-      - 5432:5432
     networks:
       - postiz-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postiz-local -d postiz-db-local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   postiz-redis:
-    # ref: https://hub.docker.com/_/redis
-    image: redis:7-alpine # 7.4.0
+    image: redis:7-alpine
     container_name: postiz-redis
     restart: always
-    ports:
-      - 6379:6379
     networks:
       - postiz-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional DB UI (kept internal; no ports mapped)
   postiz-pg-admin:
-    # ref: https://hub.docker.com/r/dpage/pgadmin4/tags
     image: dpage/pgadmin4:latest
     container_name: postiz-pg-admin
     restart: always
-    ports:
-      - 8081:80
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
     networks:
       - postiz-network
+
+  # Optional Redis UI (kept internal; no ports mapped)
   postiz-redisinsight:
-    # ref: https://hub.docker.com/r/redis/redisinsight
     image: redis/redisinsight:latest
     container_name: postiz-redisinsight
-    links:
+    restart: always
+    depends_on:
       - postiz-redis
-    ports:
-      - '5540:5540'
     volumes:
       - redisinsight:/data
     networks:
       - postiz-network
+
+  # The actual app
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz-app
     restart: always
+    environment:
+      # URLs & flags: set these in Coolify UI (not in Git)
+      # MAIN_URL: (set in Coolify: https://your-domain)
+      # FRONTEND_URL: (set in Coolify: https://your-domain)
+      # NEXT_PUBLIC_BACKEND_URL: (set in Coolify: https://your-domain/api)
+      # NOT_SECURED: "true" (only if testing without HTTPS; remove later)
+
+      # Internal services
+      DATABASE_URL: "postgresql://postiz-local:postiz-local-pwd@postiz-postgres:5432/postiz-db-local"
+      REDIS_URL: "redis://postiz-redis:6379"
+
+      # Secrets (set in Coolify UI if you prefer): JWT_SECRET
+      JWT_SECRET: "${JWT_SECRET:-change-me-to-a-long-random-string}"
+
+      # Storage (local for now)
+      STORAGE_PROVIDER: "local"
+      UPLOAD_DIRECTORY: "/uploads"
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: "/uploads"
+
+      # Default internal backend
+      BACKEND_INTERNAL_URL: "http://localhost:3000"
+    depends_on:
+      postiz-postgres:
+        condition: service_healthy
+      postiz-redis:
+        condition: service_healthy
+    volumes:
+      - postiz-uploads:/uploads
+    networks:
+      - postiz-network
 
 volumes:
-  redisinsight:
   postgres-volume:
-    external: false
+  redisinsight:
+  postiz-uploads:
 
 networks:
   postiz-network:
